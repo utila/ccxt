@@ -513,6 +513,7 @@ declare module 'ccxt' {
     export class coss extends Exchange {}
     export class crex24 extends Exchange {}
     export class deribit extends Exchange {}
+    export class deribit2 extends Exchange {}
     export class digifinex extends Exchange {}
     export class dsx extends Exchange {}
     export class exmo extends Exchange {}

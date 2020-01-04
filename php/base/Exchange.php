@@ -147,6 +147,7 @@ class Exchange {
         'coss',
         'crex24',
         'deribit',
+        'deribit2',
         'digifinex',
         'dsx',
         'exmo',
