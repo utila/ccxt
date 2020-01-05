@@ -757,8 +757,14 @@ class deribit2(Exchange):
         return result[0:length]
 
     def sign(self, path, api='public', method='POST', params={}, headers=None, body=None):
-        url = self.urls['api'] + '/api/' + self.version + '/' + api
-        query = self.omit(params, self.extract_params(path))
+        url = self.urls['api'] + '/api/' + self.version
+        method = 'POST'
+        params = self.omit(params, self.extract_params(path))
+        query = {'jsonrpc': '2.0', 'method': api + '/' + path, 'params': {}}
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': '',
+        }
         if api == 'public':
             if path == 'auth':
                 self.check_required_credentials()
@@ -777,13 +783,10 @@ class deribit2(Exchange):
                         self.refresh_token()
             if query:
                 token = self.safe_string(self.options, 'accessToken')
-            headers = {
-                'Content-Type': 'application/json',
-                'Authorization': 'bearer ' + token,
-            }
-            query.extend(query, {'access_token': token})
-            query = self.keysort(query)
-            body = self.json(query)
+            headers['Authorization'] = 'bearer ' + token
+            query['access_token'] = token
+        query['params'] = params
+        body = self.json(query)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def sign_in(self, params={}):

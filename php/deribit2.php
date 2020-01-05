@@ -805,8 +805,14 @@ class deribit2 extends Exchange {
     }
 
     public function sign ($path, $api = 'public', $method = 'POST', $params = array (), $headers = null, $body = null) {
-        $url = $this->urls['api'] . '/api/' . $this->version . '/' . $api;
-        $query = $this->omit ($params, $this->extract_params($path));
+        $url = $this->urls['api'] . '/api/' . $this->version;
+        $method = 'POST';
+        $params = $this->omit ($params, $this->extract_params($path));
+        $query = array( 'jsonrpc' => '2.0', 'method' => $api . '/' . $path, 'params' => array());
+        $headers = array(
+            'Content-Type' => 'application/json',
+            'Authorization' => '',
+        );
         if ($api === 'public') {
             if ($path === 'auth') {
                 $this->check_required_credentials();
@@ -830,14 +836,11 @@ class deribit2 extends Exchange {
             if ($query) {
                 $token = $this->safe_string($this->options, 'accessToken');
             }
-            $headers = array(
-                'Content-Type' => 'application/json',
-                'Authorization' => 'bearer ' . $token,
-            );
-            $query->extend ($query, array( 'access_token' => $token ));
-            $query = $this->keysort ($query);
-            $body = $this->json ($query);
+            $headers['Authorization'] = 'bearer ' . $token;
+            $query['access_token'] = $token;
         }
+        $query['params'] = $params;
+        $body = $this->json ($query);
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 

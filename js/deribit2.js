@@ -797,8 +797,14 @@ module.exports = class deribit2 extends Exchange {
     }
 
     sign (path, api = 'public', method = 'POST', params = {}, headers = undefined, body = undefined) {
-        const url = this.urls['api'] + '/api/' + this.version + '/' + api;
-        let query = this.omit (params, this.extractParams (path));
+        const url = this.urls['api'] + '/api/' + this.version;
+        method = 'POST';
+        params = this.omit (params, this.extractParams (path));
+        const query = { 'jsonrpc': '2.0', 'method': api + '/' + path, 'params': {}};
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': '',
+        };
         if (api === 'public') {
             if (path === 'auth') {
                 this.checkRequiredCredentials ();
@@ -822,14 +828,11 @@ module.exports = class deribit2 extends Exchange {
             if (Object.keys (query).length) {
                 token = this.safeString (this.options, 'accessToken');
             }
-            headers = {
-                'Content-Type': 'application/json',
-                'Authorization': 'bearer ' + token,
-            };
-            query.extend (query, { 'access_token': token });
-            query = this.keysort (query);
-            body = this.json (query);
+            headers['Authorization'] = 'bearer ' + token;
+            query['access_token'] = token;
         }
+        query['params'] = params;
+        body = this.json (query);
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
