@@ -39,6 +39,7 @@ module.exports = class deribit2 extends Exchange {
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
+                'fetchOrderTrades': undefined,
                 'fetchOrderBook': true,
                 'fetchOrderBooks': undefined,
                 'fetchOrders': undefined,
@@ -379,6 +380,10 @@ module.exports = class deribit2 extends Exchange {
         return this.parseBalance (allBalances);
     }
 
+    async createDepositAddress (currency, params {}) {
+        //TODO
+    }
+
     async fetchDepositAddress (currency, params = {}) {
         const response = await this.privateGetAccountSummary ({ 'currency': currency });
         const address = this.safeString (response, 'deposit_address');
@@ -388,6 +393,26 @@ module.exports = class deribit2 extends Exchange {
             'tag': undefined,
             'info': response,
         };
+    }
+
+    async withdraw (currency, amount, address, tag='', params={}) {
+        //TODO
+        //withdraw (currency: string, amount: number, address: string, tag?: string, params?: Params): Promise<WithdrawalResponse>;
+    }
+
+    fetchTransactions (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        //TODO
+        throw new NotSupported (this.id + ' fetchTransactions not supported yet');
+    }
+
+    fetchDeposits (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        //TODO
+        throw new NotSupported (this.id + ' fetchDeposits not supported yet');
+    }
+
+    fetchWithdrawals (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        //TODO
+        throw new NotSupported (this.id + ' fetchWithdrawals not supported yet');
     }
 
     parseTicker (ticker, market = undefined) {
@@ -689,6 +714,11 @@ module.exports = class deribit2 extends Exchange {
             throw new OrderNotFound (this.id + ' fetchOrder() ' + this.json (response));
         }
         return this.parseOrder (result);
+    }
+
+    fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        //TODO: implement
+        throw new NotSupported (this.id + ' fetchOrders not supported yet');
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
