@@ -53,7 +53,11 @@ Full public and private HTTP REST APIs for all exchanges are implemented. WebSoc
 
 # Exchanges
 
+<<<<<<< HEAD
 The ccxt library currently supports the following 124 cryptocurrency exchange markets and trading APIs:
+=======
+The ccxt library currently supports the following 122 cryptocurrency exchange markets and trading APIs:
+>>>>>>> upstream/master
 
 |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logo&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                                                                                                       | id                 | name                                                                                    | ver | doc                                                                                          | certified                                                                                                                  |
 |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|-----------------------------------------------------------------------------------------|:---:|:--------------------------------------------------------------------------------------------:|----------------------------------------------------------------------------------------------------------------------------|
@@ -175,7 +179,6 @@ The ccxt library currently supports the following 124 cryptocurrency exchange ma
 |[![upbit](https://user-images.githubusercontent.com/1294454/49245610-eeaabe00-f423-11e8-9cba-4b0aed794799.jpg)](https://upbit.com)                                                             | upbit              | [Upbit](https://upbit.com)                                                              | 1   | [API](https://docs.upbit.com/docs/%EC%9A%94%EC%B2%AD-%EC%88%98-%EC%A0%9C%ED%95%9C)           | [![CCXT Certified](https://img.shields.io/badge/CCXT-certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | South Korea                             |
 |[![vaultoro](https://user-images.githubusercontent.com/1294454/27766880-f205e870-5ee9-11e7-8fe2-0d5b15880752.jpg)](https://www.vaultoro.com)                                                   | vaultoro           | [Vaultoro](https://www.vaultoro.com)                                                    | 1   | [API](https://api.vaultoro.com)                                                              |                                                                                                                             | Switzerland                             |
 |[![vbtc](https://user-images.githubusercontent.com/1294454/27991481-1f53d1d8-6481-11e7-884e-21d17e7939db.jpg)](https://vbtc.exchange)                                                          | vbtc               | [VBTC](https://vbtc.exchange)                                                           | 1   | [API](https://blinktrade.com/docs)                                                           |                                                                                                                             | Vietnam                                 |
-|[![virwox](https://user-images.githubusercontent.com/1294454/27766894-6da9d360-5eea-11e7-90aa-41f2711b7405.jpg)](https://www.virwox.com)                                                       | virwox             | [VirWoX](https://www.virwox.com)                                                        | *   | [API](https://www.virwox.com/developers.php)                                                 |                                                                                                                             | Austria, EU                             |
 |[![whitebit](https://user-images.githubusercontent.com/1294454/66732963-8eb7dd00-ee66-11e9-849b-10d9282bb9e0.jpg)](https://whitebit.com/referral/d9bdf40e-28f2-4b52-b2f9-cd1415d82963)         | whitebit           | [WhiteBit](https://whitebit.com/referral/d9bdf40e-28f2-4b52-b2f9-cd1415d82963)          | 2   | [API](https://documenter.getpostman.com/view/7473075/SVSPomwS?version=latest#intro)          |                                                                                                                             | Estonia                                 |
 |[![xbtce](https://user-images.githubusercontent.com/1294454/28059414-e235970c-662c-11e7-8c3a-08e31f78684b.jpg)](https://xbtce.com/?agent=XX97BTCXXXG687021000B)                                | xbtce              | [xBTCe](https://xbtce.com/?agent=XX97BTCXXXG687021000B)                                 | 1   | [API](https://www.xbtce.com/tradeapi)                                                        |                                                                                                                             | Russia                                  |
 |[![yobit](https://user-images.githubusercontent.com/1294454/27766910-cdcbfdae-5eea-11e7-9859-03fea873272d.jpg)](https://www.yobit.net)                                                         | yobit              | [YoBit](https://www.yobit.net)                                                          | 3   | [API](https://www.yobit.net/en/api/)                                                         |                                                                                                                             | Russia                                  |
@@ -634,8 +637,47 @@ Each market is an associative array (aka dictionary) with the following keys:
 - `quoteId`. An exchange-specific id of the quote currency, not unified.
 - `active`. A boolean indicating whether or not trading this market is currently possible. Often, when a market is inactive, all corresponding tickers, orderbooks and other related endpoints return empty responses, all zeroes, no data or outdated data for that market. The user should check if the market is active and [reload market cache periodically, as explained below](#market-cache-force-reload).
 - `info`. An associative array of non-common market properties, including fees, rates, limits and other general market information. The internal info array is different for each particular market, its contents depend on the exchange.
-- `precision`. The amounts of decimal digits accepted in order values by exchanges upon order placement for price, amount and cost.
+- `precision`. Precision accepted in order values by exchanges upon order placement for price, amount and cost. The values inside this market property depend on the `exchange.precisionMode`.
+    - If `exchange.precisionMode` is `DECIMAL_DIGITS` then the `market['precision']` designates the number of decimal digits after the dot.
+    - If `exchange.precisionMode` is `SIGNIFICANT_DIGITS` then the `market['precision']` designates the number of non-zero digits after the dot.
+    - When `exchange.precisionMode` is `TICK_SIZE` then the `market['precision']` designates the smallest possible float fractions.
 - `limits`. The minimums and maximums for prices, amounts (volumes) and costs (where cost = price * amount).
+
+## Currency Structure
+
+```JavaScript
+{
+    'id':       'btc',     // string literal for referencing within an exchange
+    'code':     'BTC',     // uppercase unified string literal code the currency
+    'name':     'Bitcoin', // string, human-readable name, if specified
+    'active':    true,     // boolean, currency status (tradeable and withdrawable)
+    'fee':       0.123
+    'precision': 8,       // number of decimal digits "after the dot" (depends on exchange.precisionMode)
+    'limits': {           // value limits when placing orders on this market
+        'amount': {
+            'min': 0.01,  // order amount should be > min
+            'max': 1000,  // order amount should be < max
+        },
+        'price':    { ... }, // same min/max limits for the price of the order
+        'cost':     { ... }, // same limits for order cost = price * amount
+        'withdraw': { ... }, // withdrawal limits
+    },
+    'info': { ... }, // the original unparsed currency info from the exchange
+}
+```
+
+Each currency is an associative array (aka dictionary) with the following keys:
+
+- `id`. The string or numeric ID of the currency within the exchange. Currency ids are used inside exchanges internally to identify coins during the request/response process.
+- `code`. An uppercase string code representation of a particular currency. Currency codes are used to reference currencies within the ccxt library (explained below).
+- `name`. Self-explaining.
+- `active`. A boolean indicating whether or not trading and funding (depositing and withdrawing) this currency is currently possible. Often, when a currency is inactive, all corresponding tickers, orderbooks and other related endpoints return empty responses, all zeroes, no data or outdated data for that currency. The user should check if the currency is active and [reload markets periodically, as explained below](#market-cache-force-reload).
+- `info`. An associative array of non-common market properties, including fees, rates, limits and other general market information. The internal info array is different for each particular market, its contents depend on the exchange.
+- `precision`. Precision accepted in values by exchanges upon referencing this currency. The value inside this property depend on the `exchange.precisionMode`.
+    - If `exchange.precisionMode` is `DECIMAL_DIGITS` then the `currency['precision']` designates the number of decimal digits after the dot.
+    - If `exchange.precisionMode` is `SIGNIFICANT_DIGITS` then the `currency['precision']` designates the number of non-zero digits after the dot.
+    - When `exchange.precisionMode` is `TICK_SIZE` then the `currency['precision']` designates the smallest possible float fractions.
+- `limits`. The minimums and maximums for prices, amounts (volumes), costs (where cost = price * amount) and withdrawals.
 
 ### Precision And Limits
 
@@ -714,11 +756,11 @@ Supported rounding modes are:
 
 The decimal precision counting mode is available in the `exchange.precisionMode` property.
 
-Supported counting modes are:
+Supported precision modes are:
 
-- `DECIMAL_PLACES` – counts all digits, 99% of exchanges use this counting mode
-- `SIGNIFICANT_DIGITS` – counts non-zero digits only, some exchanges (`bitfinex` and maybe a few other) implement this mode of counting decimals
-- `TICK_SIZE` – some exchanges only allow a multiple of a specific value (`bitmex` uses this mode)
+- `DECIMAL_PLACES` – counts all digits, 99% of exchanges use this counting mode. With this mode of precision, the numbers in `market['precision']` designate the number of decimal digits after the dot for further rounding or truncation.
+- `SIGNIFICANT_DIGITS` – counts non-zero digits only, some exchanges (`bitfinex` and maybe a few other) implement this mode of counting decimals. With this mode of precision, the numbers in `market['precision']` designate the Nth place of the last significant (non-zero) decimal digit after the dot.
+- `TICK_SIZE` – some exchanges only allow a multiple of a specific value (`bitmex` and `ftx` use this mode, for example). In this mode, the numbers in `market['precision']` designate the minimal precision fractions (floats) for rounding or truncating.
 
 Supported padding modes are:
 
@@ -782,6 +824,10 @@ $markets = $huobipro->load_markets ();
 var_dump ($huobipro->id, $markets);
 ```
 
+Apart from the market info, the `loadMarkets()` call will also load the currencies from the exchange and will cache the info in the `.markets` and the `.currencies` properties respectively.
+
+The user can also bypass the cache and call unified methods for fetching that information from the exchange endpoints directly, `fetchMarkets()` and `fetchCurrencies()`, though using these methods is not recommended. The recommended way to preload markets is by calling the `loadMarkets()` unified method.
+
 ## Symbols And Market Ids
 
 Market ids are used during the REST request-response process to reference trading pairs within exchanges. The set of market ids is unique per exchange and cannot be used across exchanges. For example, the BTC/USD pair/market may have different ids on various popular exchanges, like `btcusd`, `BTCUSD`, `XBTUSD`, `btc/usd`, `42` (numeric id), `BTC/USD`, `Btc/Usd`, `tBTCUSD`, `XXBTZUSD`. You don't need to remember or use market ids, they are there for internal HTTP request-response purposes inside exchange implementations.
@@ -813,7 +859,7 @@ Most of the time users will be working with market symbols. You will get a stand
 
     console.log (exchange.id, symbols)            // print all symbols
 
-    let currencies = exchange.currencies          // a list of currencies
+    let currencies = exchange.currencies          // a dictionary of currencies
 
     let bitfinex = new ccxt.bitfinex ()
     await bitfinex.loadMarkets ()
@@ -842,7 +888,7 @@ symbols2 = list (exchange.markets.keys ()) # same as previous line
 
 print (exchange.id, symbols)               # print all symbols
 
-currencies = exchange.currencies           # a list of currencies
+currencies = exchange.currencies           # a dictionary of currencies
 
 kraken = ccxt.kraken ()
 kraken.load_markets ()
@@ -869,7 +915,7 @@ $symbols2 = array_keys ($exchange->markets);    // same as previous line
 
 var_dump ($exchange->id, $symbols);             // print all symbols
 
-$currencies = $exchange->currencies;            // a list of currencies
+$currencies = $exchange->currencies;            // an associative array of currencies
 
 $okcoinusd = '\\ccxt\\okcoinusd';
 $okcoinusd = new $okcoinusd ();
@@ -1056,7 +1102,7 @@ To get a list of all available methods with an exchange instance, you can simply
 
 ```
 console.log (new ccxt.kraken ())   // JavaScript
-print (dir (ccxt.hitbtc ()))        # Python
+print(dir(ccxt.hitbtc()))           # Python
 var_dump (new \ccxt\okcoinusd ()); // PHP
 ```
 
@@ -1127,14 +1173,14 @@ The ccxt library supports both camelcase notation (preferred in JavaScript) and 
 
 ```
 exchange.methodName ()  // camelcase pseudocode
-exchange.method_name () // underscore pseudocode
+exchange.method_name()  // underscore pseudocode
 ```
 
 To get a list of all available methods with an exchange instance, you can simply do the following:
 
 ```
 console.log (new ccxt.kraken ())   // JavaScript
-print (dir (ccxt.hitbtc ()))        # Python
+print(dir(ccxt.hitbtc()))           # Python
 var_dump (new \ccxt\okcoinusd ()); // PHP
 ```
 
@@ -1165,7 +1211,7 @@ The unified ccxt API is a subset of methods common among the exchanges. It curre
 
 ### Overriding Unified API Params
 
-Note, that most of methods of the unified API accept an optional `params` parameter. It is an associative array (a dictionary, empty by default) containing the params you want to override. The contents of `params` are exchange-specific, consult the exchanges' API documentation for supported fields and values. Use the `params` dictionary if you need to pass a custom setting or an optional parameter to your unified query.
+Note, that most of methods of the unified API accept an optional `params` argument. It is an associative array (a dictionary, empty by default) containing the params you want to override. The contents of `params` are exchange-specific, consult the exchanges' API documentation for supported fields and values. Use the `params` dictionary if you need to pass a custom setting or an optional parameter to your unified query.
 
 ```JavaScript
 // JavaScript
@@ -1508,6 +1554,7 @@ The structure of a returned order book is as follows:
     ],
     'timestamp': 1499280391811, // Unix Timestamp in milliseconds (seconds * 1000)
     'datetime': '2017-07-05T18:47:14.692Z', // ISO8601 datetime string with milliseconds
+    'nonce': 1499280391811, // an increasing unique identifier of the orderbook snapshot
 }
 ```
 

@@ -34,6 +34,8 @@ module.exports = class binance extends Exchange {
                 'fetchDeposits': true,
                 'fetchWithdrawals': true,
                 'fetchTransactions': false,
+                'fetchTradingFee': true,
+                'fetchTradingFees': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -904,7 +906,7 @@ module.exports = class binance extends Exchange {
             'CANCELED': 'canceled',
             'PENDING_CANCEL': 'canceling', // currently unused
             'REJECTED': 'rejected',
-            'EXPIRED': 'expired',
+            'EXPIRED': 'canceled',
         };
         return this.safeString (statuses, status, status);
     }
@@ -948,7 +950,7 @@ module.exports = class binance extends Exchange {
             }
         }
         const id = this.safeString (order, 'orderId');
-        const type = this.safeStringLower (order, 'type');
+        let type = this.safeStringLower (order, 'type');
         if (type === 'market') {
             if (price === 0.0) {
                 if ((cost !== undefined) && (filled !== undefined)) {
@@ -960,6 +962,8 @@ module.exports = class binance extends Exchange {
                     }
                 }
             }
+        } else if (type === 'limit_maker') {
+            type = 'limit';
         }
         const side = this.safeStringLower (order, 'side');
         let fee = undefined;
@@ -1032,10 +1036,21 @@ module.exports = class binance extends Exchange {
         }
         const request = {
             'symbol': market['id'],
-            'quantity': this.amountToPrecision (symbol, amount),
             'type': uppercaseType,
             'side': side.toUpperCase (),
         };
+        if (type === 'market') {
+            const quoteOrderQty = this.safeFloat (params, 'quoteOrderQty');
+            if (quoteOrderQty !== undefined) {
+                request['quoteOrderQty'] = this.costToPrecision (symbol, quoteOrderQty);
+            } else if (price !== undefined) {
+                request['quoteOrderQty'] = this.costToPrecision (symbol, amount * price);
+            } else {
+                request['quantity'] = this.amountToPrecision (symbol, amount);
+            }
+        } else {
+            request['quantity'] = this.amountToPrecision (symbol, amount);
+        }
         if (market['spot']) {
             request['newOrderRespType'] = this.safeValue (this.options['newOrderRespType'], type, 'RESULT'); // 'ACK' for order id, 'RESULT' for full order or 'FULL' for order with fills
         }
@@ -1413,6 +1428,7 @@ module.exports = class binance extends Exchange {
         //     { withdrawList: [ {      amount:  14,
         //                             address: "0x0123456789abcdef...",
         //                         successTime:  1514489710000,
+        //                      transactionFee:  0.01,
         //                          addressTag: "",
         //                                txId: "0x0123456789abcdef...",
         //                                  id: "0123456789abcdef...",
@@ -1422,6 +1438,7 @@ module.exports = class binance extends Exchange {
         //                       {      amount:  7600,
         //                             address: "0x0123456789abcdef...",
         //                         successTime:  1515323226000,
+        //                      transactionFee:  0.01,
         //                          addressTag: "",
         //                                txId: "0x0123456789abcdef...",
         //                                  id: "0123456789abcdef...",
@@ -1471,6 +1488,7 @@ module.exports = class binance extends Exchange {
         //       {      amount:  14,
         //             address: "0x0123456789abcdef...",
         //         successTime:  1514489710000,
+        //      transactionFee:  0.01,
         //          addressTag: "",
         //                txId: "0x0123456789abcdef...",
         //                  id: "0123456789abcdef...",
@@ -1504,6 +1522,11 @@ module.exports = class binance extends Exchange {
         }
         const status = this.parseTransactionStatusByType (this.safeString (transaction, 'status'), type);
         const amount = this.safeFloat (transaction, 'amount');
+        const feeCost = this.safeFloat (transaction, 'transactionFee');
+        let fee = undefined;
+        if (feeCost !== undefined) {
+            fee = { 'currency': code, 'cost': feeCost };
+        }
         return {
             'info': transaction,
             'id': id,
@@ -1517,7 +1540,7 @@ module.exports = class binance extends Exchange {
             'currency': code,
             'status': status,
             'updated': undefined,
-            'fee': undefined,
+            'fee': fee,
         };
     }
 
@@ -1603,6 +1626,77 @@ module.exports = class binance extends Exchange {
             'info': response,
             'id': this.safeString (response, 'id'),
         };
+    }
+
+    parseTradingFee (fee, market = undefined) {
+        //
+        //     {
+        //         "symbol": "ADABNB",
+        //         "maker": 0.9000,
+        //         "taker": 1.0000
+        //     }
+        //
+        const marketId = this.safeString (fee, 'symbol');
+        let symbol = marketId;
+        if (marketId in this.markets_by_id) {
+            const market = this.markets_by_id[marketId];
+            symbol = market['symbol'];
+        }
+        return {
+            'info': fee,
+            'symbol': symbol,
+            'maker': this.safeFloat (fee, 'maker'),
+            'taker': this.safeFloat (fee, 'taker'),
+        };
+    }
+
+    async fetchTradingFee (symbol, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await this.wapiGetTradeFee (this.extend (request, params));
+        //
+        //     {
+        //         "tradeFee": [
+        //             {
+        //                 "symbol": "ADABNB",
+        //                 "maker": 0.9000,
+        //                 "taker": 1.0000
+        //             }
+        //         ],
+        //         "success": true
+        //     }
+        //
+        const tradeFee = this.safeValue (response, 'tradeFee', []);
+        const first = this.safeValue (tradeFee, 0, {});
+        return this.parseTradingFee (first);
+    }
+
+    async fetchTradingFees (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.wapiGetTradeFee (params);
+        //
+        //     {
+        //         "tradeFee": [
+        //             {
+        //                 "symbol": "ADABNB",
+        //                 "maker": 0.9000,
+        //                 "taker": 1.0000
+        //             }
+        //         ],
+        //         "success": true
+        //     }
+        //
+        const tradeFee = this.safeValue (response, 'tradeFee', []);
+        const result = {};
+        for (let i = 0; i < tradeFee.length; i++) {
+            const fee = this.parseTradingFee (tradeFee[i]);
+            const symbol = fee['symbol'];
+            result[symbol] = fee;
+        }
+        return result;
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {

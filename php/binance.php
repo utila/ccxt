@@ -39,6 +39,8 @@ class binance extends Exchange {
                 'fetchDeposits' => true,
                 'fetchWithdrawals' => true,
                 'fetchTransactions' => false,
+                'fetchTradingFee' => true,
+                'fetchTradingFees' => true,
             ),
             'timeframes' => array(
                 '1m' => '1m',
@@ -909,7 +911,7 @@ class binance extends Exchange {
             'CANCELED' => 'canceled',
             'PENDING_CANCEL' => 'canceling', // currently unused
             'REJECTED' => 'rejected',
-            'EXPIRED' => 'expired',
+            'EXPIRED' => 'canceled',
         );
         return $this->safe_string($statuses, $status, $status);
     }
@@ -965,6 +967,8 @@ class binance extends Exchange {
                     }
                 }
             }
+        } else if ($type === 'limit_maker') {
+            $type = 'limit';
         }
         $side = $this->safe_string_lower($order, 'side');
         $fee = null;
@@ -1037,10 +1041,21 @@ class binance extends Exchange {
         }
         $request = array(
             'symbol' => $market['id'],
-            'quantity' => $this->amount_to_precision($symbol, $amount),
             'type' => $uppercaseType,
             'side' => strtoupper($side),
         );
+        if ($type === 'market') {
+            $quoteOrderQty = $this->safe_float($params, 'quoteOrderQty');
+            if ($quoteOrderQty !== null) {
+                $request['quoteOrderQty'] = $this->cost_to_precision($symbol, $quoteOrderQty);
+            } else if ($price !== null) {
+                $request['quoteOrderQty'] = $this->cost_to_precision($symbol, $amount * $price);
+            } else {
+                $request['quantity'] = $this->amount_to_precision($symbol, $amount);
+            }
+        } else {
+            $request['quantity'] = $this->amount_to_precision($symbol, $amount);
+        }
         if ($market['spot']) {
             $request['newOrderRespType'] = $this->safe_value($this->options['newOrderRespType'], $type, 'RESULT'); // 'ACK' for order id, 'RESULT' for full order or 'FULL' for order with fills
         }
@@ -1418,6 +1433,7 @@ class binance extends Exchange {
         //     { withdrawList => array( array(      amount =>  14,
         //                             address => "0x0123456789abcdef...",
         //                         successTime =>  1514489710000,
+        //                      transactionFee =>  0.01,
         //                          addressTag => "",
         //                                txId => "0x0123456789abcdef...",
         //                                  id => "0123456789abcdef...",
@@ -1427,6 +1443,7 @@ class binance extends Exchange {
         //                       {      amount =>  7600,
         //                             address => "0x0123456789abcdef...",
         //                         successTime =>  1515323226000,
+        //                      transactionFee =>  0.01,
         //                          addressTag => "",
         //                                txId => "0x0123456789abcdef...",
         //                                  id => "0123456789abcdef...",
@@ -1476,6 +1493,7 @@ class binance extends Exchange {
         //       {      $amount =>  14,
         //             $address => "0x0123456789abcdef...",
         //         successTime =>  1514489710000,
+        //      transactionFee =>  0.01,
         //          addressTag => "",
         //                txId => "0x0123456789abcdef...",
         //                  $id => "0123456789abcdef...",
@@ -1509,6 +1527,11 @@ class binance extends Exchange {
         }
         $status = $this->parse_transaction_status_by_type ($this->safe_string($transaction, 'status'), $type);
         $amount = $this->safe_float($transaction, 'amount');
+        $feeCost = $this->safe_float($transaction, 'transactionFee');
+        $fee = null;
+        if ($feeCost !== null) {
+            $fee = array( 'currency' => $code, 'cost' => $feeCost );
+        }
         return array(
             'info' => $transaction,
             'id' => $id,
@@ -1522,7 +1545,7 @@ class binance extends Exchange {
             'currency' => $code,
             'status' => $status,
             'updated' => null,
-            'fee' => null,
+            'fee' => $fee,
         );
     }
 
@@ -1608,6 +1631,77 @@ class binance extends Exchange {
             'info' => $response,
             'id' => $this->safe_string($response, 'id'),
         );
+    }
+
+    public function parse_trading_fee ($fee, $market = null) {
+        //
+        //     {
+        //         "$symbol" => "ADABNB",
+        //         "maker" => 0.9000,
+        //         "taker" => 1.0000
+        //     }
+        //
+        $marketId = $this->safe_string($fee, 'symbol');
+        $symbol = $marketId;
+        if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
+            $market = $this->markets_by_id[$marketId];
+            $symbol = $market['symbol'];
+        }
+        return array(
+            'info' => $fee,
+            'symbol' => $symbol,
+            'maker' => $this->safe_float($fee, 'maker'),
+            'taker' => $this->safe_float($fee, 'taker'),
+        );
+    }
+
+    public function fetch_trading_fee ($symbol, $params = array ()) {
+        $this->load_markets();
+        $market = $this->market ($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        $response = $this->wapiGetTradeFee (array_merge($request, $params));
+        //
+        //     {
+        //         "$tradeFee" => array(
+        //             {
+        //                 "$symbol" => "ADABNB",
+        //                 "maker" => 0.9000,
+        //                 "taker" => 1.0000
+        //             }
+        //         ),
+        //         "success" => true
+        //     }
+        //
+        $tradeFee = $this->safe_value($response, 'tradeFee', array());
+        $first = $this->safe_value($tradeFee, 0, array());
+        return $this->parse_trading_fee ($first);
+    }
+
+    public function fetch_trading_fees ($params = array ()) {
+        $this->load_markets();
+        $response = $this->wapiGetTradeFee ($params);
+        //
+        //     {
+        //         "$tradeFee" => array(
+        //             {
+        //                 "$symbol" => "ADABNB",
+        //                 "maker" => 0.9000,
+        //                 "taker" => 1.0000
+        //             }
+        //         ),
+        //         "success" => true
+        //     }
+        //
+        $tradeFee = $this->safe_value($response, 'tradeFee', array());
+        $result = array();
+        for ($i = 0; $i < count($tradeFee); $i++) {
+            $fee = $this->parse_trading_fee ($tradeFee[$i]);
+            $symbol = $fee['symbol'];
+            $result[$symbol] = $fee;
+        }
+        return $result;
     }
 
     public function sign ($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
